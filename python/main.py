@@ -86,11 +86,11 @@ async def get_weather(request: Request, city: str):
             pass
 
         datos_clima = {
-            "city": valor.get("name"),
-            "temperature": valor.get("main", {}).get("temp"),
-            "description": valor.get("weather", [{}])[0].get("description"),
-            "humidity": valor.get("main", {}).get("humidity"),
-            "wind_speed": valor.get("wind", {}).get("speed"),
+            "ciudad": valor.get("name"),
+            "temperatura": valor.get("main", {}).get("temp"),
+            "descripcion": valor.get("weather", [{}])[0].get("description"),
+            "humedad": valor.get("main", {}).get("humidity"),
+            "velocidad_viento": valor.get("wind", {}).get("speed"),
         }
         return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
     
