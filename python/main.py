@@ -3,8 +3,14 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import httpx
+from keydb import KeyDB
+import json
+import asyncio
 
 app = FastAPI()
+# KeyDB is required. Create the client at import time so startup fails if KeyDB is missing
+keydb_client = KeyDB(host='localhost', port=6379, db=0)
+app.state.keydb_client = keydb_client
 
 API_KEY = "c1509a9d90f6ae1f2cb351c1eec8ad64" 
 BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
@@ -12,33 +18,79 @@ BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
 TEMPLATES_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-from fastapi import Query
-
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("busqueda.html", {"request": request})    
     
 @app.get("/clima", response_class=HTMLResponse)
 async def get_weather(request: Request, city: str):
-    parametros = {
-        "q": city,  
-        "appid": API_KEY,
-        "units": "metric"
-    }
+    parametros = {"q": city, "appid": API_KEY, "units": "metric"}
+
+    cached = None
+    try:
+        import time
+        t0 = time.perf_counter()
+        try:
+            cached = await asyncio.wait_for(asyncio.to_thread(app.state.keydb_client.get, city), timeout=0.5)
+            t1 = time.perf_counter()
+            print(f"[cache] get {city} took {t1-t0:.3f}s")
+        except Exception:
+            t1 = time.perf_counter()
+            print(f"[cache] get {city} failed/timed out after {t1-t0:.3f}s")
+            cached = None
+        if isinstance(cached, (bytes, bytearray)):
+            cached = cached.decode()
+    except Exception:
+        cached = None
+
+    if cached:
+        try:
+            valor = json.loads(cached)
+        except Exception:
+            valor = None
+        if valor:
+            datos_clima = {
+                "ciudad": valor.get("name"),
+                "temperatura": valor.get("main", {}).get("temp"),
+                "descripcion": valor.get("weather", [{}])[0].get("description"),
+                "humedad": valor.get("main", {}).get("humidity"),
+                "velocidad_viento": valor.get("wind", {}).get("speed"),
+            }
+            return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
+
+    # 2) No cache hit, call the external API
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(BASE_URL, params=parametros)
         except httpx.RequestError:
-            raise HTTPException(status_code=502, detail="Error contacting weather API")
-        if response.status_code == 200:
-            data = response.json()
-            datos_clima = {
-                "ciudad": data["name"],   
-                "temperatura": data["main"]["temp"],
-                "descripcion": data["weather"][0]["description"],
-                "humedad": data["main"]["humidity"],
-                "velocidad-viento": data["wind"]["speed"]
-            }
-            return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
-        else:
+            raise HTTPException(status_code=502, detail="No se puede conectar al servicio de clima")
+
+        if response.status_code != 200:
             raise HTTPException(status_code=404, detail="Ciudad no encontrada")
+
+        valor = response.json()
+
+        # Store in cache (non-blocking via to_thread)
+        try:
+            import time
+            t0 = time.perf_counter()
+            try:
+                await asyncio.wait_for(asyncio.to_thread(lambda: app.state.keydb_client.set(city, json.dumps(valor), ex=300)), timeout=0.5)
+                t1 = time.perf_counter()
+                print(f"[cache] set {city} took {t1-t0:.3f}s")
+            except Exception:
+                t1 = time.perf_counter()
+                print(f"[cache] set {city} failed/timed out after {t1-t0:.3f}s")
+        except Exception:
+            print("[cache] set failed")
+            pass
+
+        datos_clima = {
+            "city": valor.get("name"),
+            "temperature": valor.get("main", {}).get("temp"),
+            "description": valor.get("weather", [{}])[0].get("description"),
+            "humidity": valor.get("main", {}).get("humidity"),
+            "wind_speed": valor.get("wind", {}).get("speed"),
+        }
+        return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
+    
