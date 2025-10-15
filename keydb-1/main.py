@@ -8,7 +8,7 @@ import json
 import asyncio
 
 app = FastAPI()
-# KeyDB is required. Create the client at import time so startup fails if KeyDB is missing
+
 keydb_client = KeyDB(host='localhost', port=6379, db=0)
 app.state.keydb_client = keydb_client
 
@@ -58,7 +58,6 @@ async def get_weather(request: Request, city: str):
             }
             return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
 
-    # 2) No cache hit, call the external API
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(BASE_URL, params=parametros)
@@ -70,7 +69,6 @@ async def get_weather(request: Request, city: str):
 
         valor = response.json()
 
-        # Store in cache (non-blocking via to_thread)
         try:
             import time
             t0 = time.perf_counter()
