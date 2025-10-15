@@ -3,14 +3,15 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import httpx
-from keydb import KeyDB
+import redis
 import json
 import asyncio
 
 app = FastAPI()
 
-keydb_client = KeyDB(host='localhost', port=6379, db=0)
-app.state.keydb_client = keydb_client
+# Conexión a Redis
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+app.state.redis_client = redis_client
 
 API_KEY = "c1509a9d90f6ae1f2cb351c1eec8ad64" 
 BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
@@ -26,20 +27,21 @@ async def read_root(request: Request):
 async def get_weather(request: Request, city: str):
     parametros = {"q": city, "appid": API_KEY, "units": "metric"}
 
+    # Intentar obtener de cache Redis
     cached = None
     try:
         import time
         t0 = time.perf_counter()
         try:
-            cached = await asyncio.wait_for(asyncio.to_thread(app.state.keydb_client.get, city), timeout=0.5)
+            cached = await asyncio.wait_for(
+                asyncio.to_thread(app.state.redis_client.get, city), timeout=0.5
+            )
             t1 = time.perf_counter()
             print(f"[cache] get {city} took {t1-t0:.3f}s")
         except Exception:
             t1 = time.perf_counter()
             print(f"[cache] get {city} failed/timed out after {t1-t0:.3f}s")
             cached = None
-        if isinstance(cached, (bytes, bytearray)):
-            cached = cached.decode()
     except Exception:
         cached = None
 
@@ -58,6 +60,7 @@ async def get_weather(request: Request, city: str):
             }
             return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
 
+    # Si no está en cache, consultar OpenWeather
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(BASE_URL, params=parametros)
@@ -69,11 +72,14 @@ async def get_weather(request: Request, city: str):
 
         valor = response.json()
 
+        # Guardar en cache Redis con TTL 300s (5 minutos)
         try:
-            import time
             t0 = time.perf_counter()
             try:
-                await asyncio.wait_for(asyncio.to_thread(lambda: app.state.keydb_client.set(city, json.dumps(valor), ex=300)), timeout=0.5)
+                await asyncio.wait_for(
+                    asyncio.to_thread(lambda: app.state.redis_client.set(city, json.dumps(valor), ex=300)),
+                    timeout=0.5
+                )
                 t1 = time.perf_counter()
                 print(f"[cache] set {city} took {t1-t0:.3f}s")
             except Exception:
@@ -91,4 +97,5 @@ async def get_weather(request: Request, city: str):
             "velocidad_viento": valor.get("wind", {}).get("speed"),
         }
         return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
+
     
