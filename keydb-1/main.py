@@ -92,3 +92,4 @@ async def get_weather(request: Request, city: str):
         }
         return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
     
+    # Actualización de prueba
