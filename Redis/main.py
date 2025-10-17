@@ -3,14 +3,16 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import httpx
-from keydb import KeyDB
+import redis       
 import json
 import asyncio
+import time
 
 app = FastAPI()
 
-keydb_client = KeyDB(host='localhost', port=6379, db=0)
-app.state.keydb_client = keydb_client
+# Cliente Redis local (mismo host/puerto que usabas con KeyDB)
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+app.state.redis_client = redis_client
 
 API_KEY = "c1509a9d90f6ae1f2cb351c1eec8ad64" 
 BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
@@ -91,5 +93,3 @@ async def get_weather(request: Request, city: str):
             "velocidad_viento": valor.get("wind", {}).get("speed"),
         }
         return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
-    
-    # Actualización de prueba
