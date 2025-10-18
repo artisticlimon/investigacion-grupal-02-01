@@ -3,14 +3,13 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import httpx
-import redis       
+import redis
 import json
 import asyncio
 import time
 
 app = FastAPI()
 
-# Cliente Redis local (mismo host/puerto que usabas con KeyDB)
 redis_client = redis.Redis(host='localhost', port=6379, db=0)
 app.state.redis_client = redis_client
 
@@ -27,13 +26,13 @@ async def read_root(request: Request):
 @app.get("/clima", response_class=HTMLResponse)
 async def get_weather(request: Request, city: str):
     parametros = {"q": city, "appid": API_KEY, "units": "metric"}
+    t_start = time.perf_counter()
 
     cached = None
     try:
-        import time
         t0 = time.perf_counter()
         try:
-            cached = await asyncio.wait_for(asyncio.to_thread(app.state.keydb_client.get, city), timeout=0.5)
+            cached = await asyncio.wait_for(asyncio.to_thread(app.state.redis_client.get, city), timeout=0.5)
             t1 = time.perf_counter()
             print(f"[cache] get {city} took {t1-t0:.3f}s")
         except Exception:
@@ -58,7 +57,8 @@ async def get_weather(request: Request, city: str):
                 "humedad": valor.get("main", {}).get("humidity"),
                 "velocidad_viento": valor.get("wind", {}).get("speed"),
             }
-            return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
+            duracion = f"{(time.perf_counter() - t_start):.6f}s"
+            return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima, "duracion": duracion, "fuente": "cache"})
 
     async with httpx.AsyncClient() as client:
         try:
@@ -72,10 +72,9 @@ async def get_weather(request: Request, city: str):
         valor = response.json()
 
         try:
-            import time
             t0 = time.perf_counter()
             try:
-                await asyncio.wait_for(asyncio.to_thread(lambda: app.state.keydb_client.set(city, json.dumps(valor), ex=300)), timeout=0.5)
+                await asyncio.wait_for(asyncio.to_thread(lambda: app.state.redis_client.set(city, json.dumps(valor), ex=300)), timeout=0.5)
                 t1 = time.perf_counter()
                 print(f"[cache] set {city} took {t1-t0:.3f}s")
             except Exception:
@@ -92,4 +91,5 @@ async def get_weather(request: Request, city: str):
             "humedad": valor.get("main", {}).get("humidity"),
             "velocidad_viento": valor.get("wind", {}).get("speed"),
         }
-        return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
+    duracion = f"{(time.perf_counter() - t_start):.6f}s"
+    return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima, "duracion": duracion, "fuente": "api"})
