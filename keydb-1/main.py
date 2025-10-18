@@ -6,6 +6,7 @@ import httpx
 from keydb import KeyDB
 import json
 import asyncio
+import time
 
 app = FastAPI()
 
@@ -25,10 +26,10 @@ async def read_root(request: Request):
 @app.get("/clima", response_class=HTMLResponse)
 async def get_weather(request: Request, city: str):
     parametros = {"q": city, "appid": API_KEY, "units": "metric"}
+    t_start = time.perf_counter()
 
     cached = None
     try:
-        import time
         t0 = time.perf_counter()
         try:
             cached = await asyncio.wait_for(asyncio.to_thread(app.state.keydb_client.get, city), timeout=0.5)
@@ -56,7 +57,8 @@ async def get_weather(request: Request, city: str):
                 "humedad": valor.get("main", {}).get("humidity"),
                 "velocidad_viento": valor.get("wind", {}).get("speed"),
             }
-            return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
+            duracion = f"{(time.perf_counter() - t_start):.3f}s"
+            return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima, "duracion": duracion})
 
     async with httpx.AsyncClient() as client:
         try:
@@ -70,7 +72,6 @@ async def get_weather(request: Request, city: str):
         valor = response.json()
 
         try:
-            import time
             t0 = time.perf_counter()
             try:
                 await asyncio.wait_for(asyncio.to_thread(lambda: app.state.keydb_client.set(city, json.dumps(valor), ex=300)), timeout=0.5)
@@ -90,5 +91,6 @@ async def get_weather(request: Request, city: str):
             "humedad": valor.get("main", {}).get("humidity"),
             "velocidad_viento": valor.get("wind", {}).get("speed"),
         }
-        return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
+    duracion = f"{(time.perf_counter() - t_start):.3f}s"
+    return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima, "duracion": duracion})
     
