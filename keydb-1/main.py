@@ -57,7 +57,7 @@ async def get_weather(request: Request, city: str):
                 "humedad": valor.get("main", {}).get("humidity"),
                 "velocidad_viento": valor.get("wind", {}).get("speed"),
             }
-            duracion = f"{(time.perf_counter() - t_start):.3f}s"
+            duracion = f"{(time.perf_counter() - t_start):.6f}s"
             return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima, "duracion": duracion, "fuente": "cache"})
 
     async with httpx.AsyncClient() as client:
@@ -91,6 +91,6 @@ async def get_weather(request: Request, city: str):
             "humedad": valor.get("main", {}).get("humidity"),
             "velocidad_viento": valor.get("wind", {}).get("speed"),
         }
-    duracion = f"{(time.perf_counter() - t_start):.3f}s"
+    duracion = f"{(time.perf_counter() - t_start):.6f}s"
     return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima, "duracion": duracion, "fuente": "api"})
     
