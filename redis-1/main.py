@@ -14,7 +14,7 @@ redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=T
 app.state.redis_client = redis_client
 
 API_KEY = "e398b09460852caba2296b2d5915e79e" 
-BASE_URL = "http://api.openweathermap.org/data/3.0/weather"
+BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
 
 TEMPLATES_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
