@@ -6,16 +6,16 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import httpx
-import redis
+import valkey
 import json
 import time
 import asyncio
 
 app = FastAPI() # Crear instancia de la aplicación FastAPI
 
-# Configurar redis cliente y almacenarlo 
-redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-app.state.redis_client = redis_client
+# Configurar valkey cliente y almacenarlo 
+valkey_client = valkey.Valkey(host='localhost', port=6379, db=0, decode_responses=True)
+app.state.valkey_client = valkey_client
 
 # Configuración de la API de clima, con el API key y URL base
 API_KEY = "c1509a9d90f6ae1f2cb351c1eec8ad64" 
@@ -36,13 +36,13 @@ async def get_weather(request: Request, city: str):
     parametros = {"q": city, "appid": API_KEY, "units": "metric"}  #Parámetros para la solicitud de la API
     t_start = time.perf_counter()
 
-    # Intentar obtener del cache redis
+    # Intentar obtener del cache valkey
     cached = None
     try:
         t0 = time.perf_counter() # Tiempo inicial para medir tiempo de obtención desde caché
         try:
-            cached = await asyncio.wait_for( # Obtener valor desde redis con timeout, si está disponible, y que cada 5 minutos se elimine
-                asyncio.to_thread(app.state.redis_client.get, city),
+            cached = await asyncio.wait_for( # Obtener valor desde valkey con timeout, si está disponible, y que cada 5 minutos se elimine
+                asyncio.to_thread(app.state.valkey_client.get, city),
                 timeout=0.5
             )
             t1 = time.perf_counter() # Tiempo final para medir tiempo de obtención desde caché
@@ -92,9 +92,9 @@ async def get_weather(request: Request, city: str):
             t0 = time.perf_counter()
             try:
                 await asyncio.wait_for(
-                    asyncio.to_thread(lambda: app.state.redis_client.set(city, json.dumps(valor), ex=300)),
+                    asyncio.to_thread(lambda: app.state.valkey_client.set(city, json.dumps(valor), ex=300)),
                     timeout=0.5
-                ) # Almacenar datos en redis con tiempo de expiración de 5 minutos y timeout
+                ) # Almacenar datos en valkey con tiempo de expiración de 5 minutos y timeout
                 t1 = time.perf_counter()
                 print(f"[cache] set {city} took {t1-t0:.3f}s")  # Imprimir tiempo tomado para almacenar en caché
             except Exception:
