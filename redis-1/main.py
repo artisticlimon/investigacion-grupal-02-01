@@ -5,36 +5,41 @@ from pathlib import Path
 import httpx
 import redis
 import json
+import time
 import asyncio
 
 app = FastAPI()
 
-# Conexión a Redis
+# --- Conexión a Redis ---
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 app.state.redis_client = redis_client
 
-API_KEY = "e398b09460852caba2296b2d5915e79e" 
+API_KEY = "c1509a9d90f6ae1f2cb351c1eec8ad64" 
 BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
 
+# --- Directorio de templates ---
 TEMPLATES_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# --- Página principal ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("busqueda.html", {"request": request})    
-    
+
+# --- Obtener clima ---
 @app.get("/clima", response_class=HTMLResponse)
 async def get_weather(request: Request, city: str):
     parametros = {"q": city, "appid": API_KEY, "units": "metric"}
+    t_start = time.perf_counter()
 
-    # Intentar obtener de cache Redis
+    # --- Intentar obtener del cache ---
     cached = None
     try:
-        import time
         t0 = time.perf_counter()
         try:
             cached = await asyncio.wait_for(
-                asyncio.to_thread(app.state.redis_client.get, city), timeout=0.5
+                asyncio.to_thread(app.state.redis_client.get, city),
+                timeout=0.5
             )
             t1 = time.perf_counter()
             print(f"[cache] get {city} took {t1-t0:.3f}s")
@@ -42,6 +47,8 @@ async def get_weather(request: Request, city: str):
             t1 = time.perf_counter()
             print(f"[cache] get {city} failed/timed out after {t1-t0:.3f}s")
             cached = None
+        if isinstance(cached, (bytes, bytearray)):
+            cached = cached.decode()
     except Exception:
         cached = None
 
@@ -58,9 +65,13 @@ async def get_weather(request: Request, city: str):
                 "humedad": valor.get("main", {}).get("humidity"),
                 "velocidad_viento": valor.get("wind", {}).get("speed"),
             }
-            return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
+            duracion = f"{(time.perf_counter() - t_start):.6f}s"
+            return templates.TemplateResponse(
+                "resultado.html", 
+                {"request": request, "clima": datos_clima, "duracion": duracion, "fuente": "cache"}
+            )
 
-    # Si no está en cache, consultar OpenWeather
+    # --- Consultar API ---
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(BASE_URL, params=parametros)
@@ -72,7 +83,7 @@ async def get_weather(request: Request, city: str):
 
         valor = response.json()
 
-        # Guardar en cache Redis con TTL 300s (5 minutos)
+        # --- Guardar en cache ---
         try:
             t0 = time.perf_counter()
             try:
@@ -96,6 +107,9 @@ async def get_weather(request: Request, city: str):
             "humedad": valor.get("main", {}).get("humidity"),
             "velocidad_viento": valor.get("wind", {}).get("speed"),
         }
-        return templates.TemplateResponse("resultado.html", {"request": request, "clima": datos_clima})
-
+    duracion = f"{(time.perf_counter() - t_start):.6f}s"
+    return templates.TemplateResponse(
+        "resultado.html", 
+        {"request": request, "clima": datos_clima, "duracion": duracion, "fuente": "api"}
+    )
     
