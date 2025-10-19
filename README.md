@@ -6,7 +6,7 @@ En cada carpeta hay tres archivos. Los dos archivos HTML corresponden a la UI, q
 
 Esta aplicación utiliza FastAPI y OpenWeatherMap.
 
-Para implementar cada aplicación, primero se debe descargar la carpeta que corresponde al software deseado. Hay que asegurarse que estén los tres archivos en la carpeta (dos HTML y uno .py). Es importante asegurarse que se tengan todos los paquetes del main.py descargados, al igual que ``uvicorn`` y el software de base de datos en sí. Luego, se corre esta carpeta desde la terminal y se pasa el siguiente comando: ``uvicorn main:app --reload``. Finalmente, se abre el enlace que aparece en terminal usando CRTL+C.
+Para implementar cada aplicación, primero se debe descargar la carpeta que corresponde al software deseado. Hay que asegurarse que estén los tres archivos en la carpeta (dos HTML y uno .py). Es importante asegurarse que se tengan todos los paquetes del main.py descargados, al igual que ``uvicorn`` y el software de base de datos en sí. Luego, se corre esta carpeta desde la terminal y se pasa el siguiente comando: ``uvicorn main:app --reload``. Finalmente, se abre el enlace que aparece en terminal usando CRTL+Click.
 
 La página de búsqueda de la aplicación se debe ver así:
 
