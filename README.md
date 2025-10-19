@@ -10,4 +10,8 @@ Para implementar cada aplicación, primero se debe descargar la carpeta que corr
 
 La página de búsqueda de la aplicación se debe ver así:
 
+ ![](/images/busqueda-ejemplo.png)
+
 y un ejemplo de la página de resultados es la siguiente:
+
+ ![](/images/resultado-ejemplo.png)
