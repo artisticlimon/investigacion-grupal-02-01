@@ -6,7 +6,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import httpx
-import valkey import Valkey
+import valkey 
+import Valkey
 import json
 import time
 import asyncio
