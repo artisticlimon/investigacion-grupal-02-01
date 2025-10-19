@@ -6,7 +6,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import httpx
-import valkey import Valkey
+import valkey
+valkey_client = valkey.Valkey(host='localhost', port=6379, db=0, decode_responses=True)
 import json
 import time
 import asyncio
