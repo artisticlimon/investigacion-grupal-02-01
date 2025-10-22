@@ -15,3 +15,15 @@ La página de búsqueda de la aplicación se debe ver así:
 y un ejemplo de la página de resultados es la siguiente:
 
  ![](/images/resultado-ejemplo.png)
+
+## Instrucciones para implementar Redis, Valkey y KeyDB
+
+1. Instalar Docker Desktop.
+2. Correr los siguientes comandos para instalar cada software:
+  + Redis: ``docker pull redis`` y luego ``docker run --name my-redis -p 6379:6379 -d redis``
+  + Valkey: ``docker pull valkey/valkey:latest`` y luego ``docker run -d --name my-valkey -p 6379:6379 -v valkey_data:/data valkey/valkey``
+  + KeyDB: ``docker pull eqalpha/keydb`` y luego ``docker run --name some-keydb -d eqalpha/keydb``
+3. Reiniciar la computadora.
+4. Abrir Docker Desktop, y en la parte de los containers correr el software que se desea aplicar.
+
+Listo, ahora lo único que se debe hacer es, con la carpeta abierta en una terminal, se corre la aplicación con ``uvicorn main:app --reload``.
